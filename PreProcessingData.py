@@ -12,7 +12,6 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 import librosa
-import os
 import zipfile
 from datetime import datetime
 import IPython.display as ipd
@@ -24,7 +23,8 @@ from IPython.display import Audio
 
 class PreProcessingMusic:
 
-  def __init__(self,data_filepath,length = 22050):
+  def __init__(self,data_filepath,length = 22050,method_1=False,
+              method_2 = False, method_3 = False,plotNoise = False ):
     self.data_filepath = data_filepath #'Data.zip'
     self.sr_list = []
     self.audio_list = []
@@ -32,6 +32,10 @@ class PreProcessingMusic:
     self.snr = 50 #dB
     self.length = length
     self.start = datetime.now()
+    self.method_1 = method_1
+    self.method_2 = method_2
+    self.method_3 = method_3
+    self.plotNoise = plotNoise
   
 
 
@@ -47,12 +51,12 @@ class PreProcessingMusic:
       #librosa.display.waveplot(x, sr=sr)
       self.audio_list.append(x)
       self.sr_list.append(sr)
-      
     
     
+   
     
   
-  def addDistortion(self,plot=True):
+  def addDistortion(self):
     self.clean_audio = self.audio_list
     self.noisy_audio = []
     mu = 0
@@ -69,11 +73,11 @@ class PreProcessingMusic:
       noise_power = np.sqrt(np.mean(noise**2))
       #noise_db = 10*np.log10(noise_power)
       sig_noise = audio_power/noise_power
-      print('SNR: {0} \nSignal: {1}\nNoise: {2}'.format(sig_noise,audio_power,noise_power))
+      #print('SNR: {0} \nSignal: {1}\nNoise: {2}'.format(sig_noise,audio_power,noise_power))
       dist = audio+noise
       self.noisy_audio.append(dist)
     
-    if plot:
+    if self.plotNoise:
       count, bins, ignored = plt.hist(noise, 30, density=True)
       plt.title('Noise Profile')
       plt.plot(bins, 
@@ -83,19 +87,22 @@ class PreProcessingMusic:
       
     self.clean_audio = np.asarray(self.clean_audio)
     self.noisy_audio = np.asarray(self.noisy_audio)
+    
+    #self.audio_shape = self.clean_audio.shape
     return dist
   
-  def trimData(self):
+  def padData(self):
+    for i in range(self.clean_audio.shape[0]):
+      excess_length = self.clean_audio[i].size%self.length 
     
-    excess_length = self.clean_audio.size%self.length 
-    self.clean_audio = self.clean_audio.reshape(1,-1)
-    self.noisy_audio = self.noisy_audio.reshape(1,-1)
+      if excess_length is not 0:
+        padLength = self.length-excess_length
+        zeros = np.zeros((1,padLength))
+        self.clean_audio[i] = np.concatenate((self.clean_audio[i],zeros),axis = None)
+        self.noisy_audio[i] = np.concatenate((self.noisy_audio[i],zeros),axis = None)
+        self.audio_shape = self.clean_audio.shape 
     
-    if excess_length is not 0:
-      self.clean_audio = self.clean_audio[0][0:-excess_length]
-      self.noisy_audio = self.noisy_audio[0][0:-excess_length]
-    
-  def scaleData(self,method_1 = False,method_2 = False,method_3 = False):
+  def scaleData(self):
     ''' There are three scaling methods. The first uses the same scale for both
     noisy signals and clean signals. This is to make it easier for the nn map 
     the noisy signal onto the clean signal. The problem is the sscaler may not
@@ -106,38 +113,43 @@ class PreProcessingMusic:
     self.scaler = MinMaxScaler(feature_range = (0,1))
     self.scaler_2 = MinMaxScaler(feature_range = (0,1))
     
-    if method_1:
-      data  = np.concatenate((self.clean_audio,self.noisy_audio),axis=None)
-      data = data.reshape(1,-1)
-      data = self.scaler.fit_transform(data)
-      data = data.reshape(-1,1)
-      self.clean_audio = data[0:self.clean_audio.size]
-      self.noisy_audio = data[self.clean_audio.size:data.size]
-    
-    if method_2:
-      self.clean_audio = self.scaler.fit_transform(self.clean_audio.reshape(1,-1))
-      self.noisy_audio = self.scaler.fit_transform(self.noisy_audio.reshape(1,-1))
-      self.clean_audio = self.clean_audio.reshape(-1,1)
-      self.noisy_audio = self.noisy_audio.reshape(-1,1)
-    
-    else:
-      self.clean_audio = self.scaler.fit_transform(self.clean_audio.reshape(1,-1))
-      self.noisy_audio = self.scaler_2.fit_transform(self.noisy_audio.reshape(1,-1))
-      self.clean_audio = self.clean_audio.reshape(-1,1)
-      self.noisy_audio = self.noisy_audio.reshape(-1,1)
+    for i in range(self.clean_audio.shape[0]):
+      if self.method_1:
+        data  = np.concatenate((self.clean_audio[i],self.noisy_audio[i]),axis=None)
+        data = data.reshape(1,-1)
+        data = self.scaler.fit_transform(data)
+        data = data.reshape(-1,1)
+        self.clean_audio[i] = data[0:self.clean_audio[i].size]
+        self.noisy_audio[i] = data[self.clean_audio[i].size:data.size]
+
+      if self.method_2:
+        self.clean_audio[i] = self.scaler.fit_transform(self.clean_audio[i].reshape(1,-1))
+        self.noisy_audio[i] = self.scaler.fit_transform(self.noisy_audio[i].reshape(1,-1))
+
+
+      else:
+        self.clean_audio[i] = self.scaler.fit_transform(self.clean_audio[i].reshape(1,-1))
+        self.noisy_audio[i] = self.scaler_2.fit_transform(self.noisy_audio[i].reshape(1,-1))
+
   
   def shapeData(self):
-    self.clean_audio = self.clean_audio.reshape(-1,self.length)
-    self.noisy_audio = self.noisy_audio.reshape(-1,self.length)
+    self.clean_data = np.asarray([])
+    self.noisy_data = np.asarray([])
+    for i in range(self.clean_audio.shape[0]):
+      self.clean_data = np.concatenate((self.clean_data,self.clean_audio[i]), axis = None)
+      self.noisy_data = np.concatenate((self.noisy_data,self.noisy_audio[i]), axis = None)
+      
+    self.clean_audio = self.clean_data.reshape(-1,self.length,1)
+    self.noisy_audio = self.noisy_data.reshape(-1,self.length,1)
   
   def run(self):
     self.gatherData()
     self.addDistortion()
-    self.trimData()
+    self.padData()
     self.scaleData()
     self.shapeData()
-    print('Clean Data Shape: {}',format(proc.clean_audio.shape))
-    print('Noisy Data Shape: {}'.format(proc.noisy_audio.shape))
+    print('Clean Data Shape: {}'.format(self.clean_audio.shape))
+    print('Noisy Data Shape: {}'.format(self.noisy_audio.shape))
     end_time = datetime.now()
     print('Time to process data: {}'.format(end_time - self.start))
   
@@ -147,10 +159,18 @@ class PreProcessingMusic:
     
 
 
-proc = PreProcessingMusic('Test.zip')
-proc.run()
-
+#proc = PreProcessingMusic('Testing.zip')
+#proc.run()
 #Audio(d,rate = proc.sr_list[0],autoplay=True)
+
+
+
+  
+  
+
+  
+  
+  
 
 
 
