@@ -117,18 +117,18 @@ class PreProcessingMusic:
         data = self.scaler.fit_transform(data)
         self.clean_audio[i] = data[0:self.clean_audio[i].size]
         self.noisy_audio[i] = data[self.clean_audio[i].size:data.size]
-        print('Scaling Method: 1')
+        #print('Scaling Method: 1')
 
       elif self.method_2:
         self.clean_audio[i] = self.scaler.fit_transform(self.clean_audio[i].reshape(-1,1))
         self.noisy_audio[i] = self.scaler.fit_transform(self.noisy_audio[i].reshape(-1,1))
-        print('Scaling Method: 2')
+        #print('Scaling Method: 2')
 
 
       elif self.method_3:
         self.clean_audio[i] = self.scaler.fit_transform(self.clean_audio[i].reshape(-1,1))
         self.noisy_audio[i] = self.scaler_2.fit_transform(self.noisy_audio[i].reshape(-1,1))
-        print('Scaling Method: 3')
+        #print('Scaling Method: 3')
 
   
   def shapeData(self):
