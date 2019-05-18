@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon May 13 22:40:22 2019
-
-@author: Sam
-"""
-
 #!pip install librosa
 #!pip install mido==1.2.6
 #!pip install madmom
@@ -23,7 +16,7 @@ from IPython.display import Audio
 
 class PreProcessingMusic:
 
-  def __init__(self,data_filepath,length = 22050,method_1=False,
+  def __init__(self,data_filepath,length = 22050,method_1=True,
               method_2 = False, method_3 = False,plotNoise = False ):
     self.data_filepath = data_filepath #'Data.zip'
     self.sr_list = []
@@ -98,9 +91,13 @@ class PreProcessingMusic:
       if excess_length is not 0:
         padLength = self.length-excess_length
         zeros = np.zeros((1,padLength))
-        self.clean_audio[i] = np.concatenate((self.clean_audio[i],zeros),axis = None)
+        #print(zeros.shape)
+        #test = np.concatenate((self.clean_audio[i].reshape(-1),zeros.reshape(-1)))
+        
+        self.clean_audio[i] = np.concatenate((self.clean_audio[i].reshape(-1),zeros.reshape(-1)),axis = None)
         self.noisy_audio[i] = np.concatenate((self.noisy_audio[i],zeros),axis = None)
         self.audio_shape = self.clean_audio.shape 
+        #print(test.shape)
     
   def scaleData(self):
     ''' There are three scaling methods. The first uses the same scale for both
@@ -116,20 +113,22 @@ class PreProcessingMusic:
     for i in range(self.clean_audio.shape[0]):
       if self.method_1:
         data  = np.concatenate((self.clean_audio[i],self.noisy_audio[i]),axis=None)
-        data = data.reshape(1,-1)
-        data = self.scaler.fit_transform(data)
         data = data.reshape(-1,1)
+        data = self.scaler.fit_transform(data)
         self.clean_audio[i] = data[0:self.clean_audio[i].size]
         self.noisy_audio[i] = data[self.clean_audio[i].size:data.size]
+        print('Scaling Method: 1')
 
-      if self.method_2:
-        self.clean_audio[i] = self.scaler.fit_transform(self.clean_audio[i].reshape(1,-1))
-        self.noisy_audio[i] = self.scaler.fit_transform(self.noisy_audio[i].reshape(1,-1))
+      elif self.method_2:
+        self.clean_audio[i] = self.scaler.fit_transform(self.clean_audio[i].reshape(-1,1))
+        self.noisy_audio[i] = self.scaler.fit_transform(self.noisy_audio[i].reshape(-1,1))
+        print('Scaling Method: 2')
 
 
-      else:
-        self.clean_audio[i] = self.scaler.fit_transform(self.clean_audio[i].reshape(1,-1))
-        self.noisy_audio[i] = self.scaler_2.fit_transform(self.noisy_audio[i].reshape(1,-1))
+      elif self.method_3:
+        self.clean_audio[i] = self.scaler.fit_transform(self.clean_audio[i].reshape(-1,1))
+        self.noisy_audio[i] = self.scaler_2.fit_transform(self.noisy_audio[i].reshape(-1,1))
+        print('Scaling Method: 3')
 
   
   def shapeData(self):
@@ -159,18 +158,10 @@ class PreProcessingMusic:
     
 
 
-#proc = PreProcessingMusic('Testing.zip')
-#proc.run()
-#Audio(d,rate = proc.sr_list[0],autoplay=True)
-
-
-
-  
-  
-
-  
-  
-  
+# proc = PreProcessingMusic('Alabama.zip')
+# x,y = proc.run()
+# x.shape
+#Audio(y[0],rate = 22050)
 
 
 
